@@ -17,6 +17,8 @@ project/plugins/project/
 .classpath
 .project
 .settings/
+.worksheet/
+*.sc
 
 # Intellij specific
 *.iml
@@ -29,3 +31,4 @@ project/plugins/project/
 
 # OS specific
 .DS_Store
+/bin

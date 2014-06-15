@@ -7,4 +7,5 @@ package com.bancoblanco
  */
 case class Transaction(amount: Double)(implicit timeService: TimeService) {
   val transactionDate: Long = timeService.now
+  println(f"Transaction: $amount%2.2fUSD on $transactionDate%2.0f")
 }
