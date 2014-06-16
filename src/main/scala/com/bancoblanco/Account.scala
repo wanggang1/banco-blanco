@@ -1,5 +1,7 @@
 package com.bancoblanco
 
+import akka.actor.{Actor, ActorLogging, ActorRef}
+
 trait AccountType {
   val typeName: String
 }
@@ -10,19 +12,17 @@ case class SuperSavingsAccount(typeName: String = "MaxiSavings") extends Account
 
 object Account extends InMemoryStore[Transaction] {
   
-  override val store_type = "account"
+  val store_type = "account"
   
   def interestOf(acctType: AccountType, amount: Double): Double = acctType match {
     case _: CheckingAccount => checkingInterest(amount)
     case _: SavingsAccount => savingsInterest(amount)
     case _: SuperSavingsAccount => superSavingsInterest(amount)
   }
-  
   private def checkingInterest(amount: Double) = {
     require(amount >= 0)
     amount * 0.001
   }
-  
   private def savingsInterest(amount: Double): Double = {
     require(amount >= 0)
     if (amount <= 1000) 
@@ -30,7 +30,6 @@ object Account extends InMemoryStore[Transaction] {
     else
       savingsInterest(1000) + (amount - 1000) * 0.002
   }
-  
   private def superSavingsInterest(amount: Double): Double = {
     require(amount >= 0) 
     if (amount <= 1000) 
@@ -40,27 +39,69 @@ object Account extends InMemoryStore[Transaction] {
     else
       superSavingsInterest(2000) + (amount - 2000) * 0.1
   }
+    
+  private def sumOfTransactions(predicate: Double => Boolean)(acctId: String) = {
+    val total = get(acctId).map(_.amount).filter(predicate).foldLeft(0.0)(_ + _)
+    total
+  }
+  val sumOfDeposits = sumOfTransactions((x: Double) => x > 0) _
+  val sumOfWithdraws = sumOfTransactions((x: Double) => x < 0) _
+  val sumOfAllTransactions = sumOfTransactions((x: Double) => true) _
+  
+  case class Deposit(amount: Double) {require(amount > 0)}
+  case class Withdraw(amount: Double) {require(amount > 0)}
+  case object Statement
+  case class StatementResult(statement: String)
+  case object Done
+  case object Failed
 }
 
-class Account(acctId: String, acctType: AccountType) {
+class Account(acctId: String, acctType: AccountType) extends Actor with ActorLogging {
+  import com.bancoblanco.SimpleTimeService._
   import Account._
   
-  //deposit
-  //withdraw
-  //balance
-  //interest owed
+  var balance = sumOfAllTransactions(acctId)
   
-  var balance = get(acctId).map(_.amount).foldLeft(0.0)(_ + _)
+  def receive = {
+    case Deposit(amount) => deposit(amount)
+                            sender ! Done
+                            context stop self
+    case Withdraw(amount) => if ( withdraw(amount) ) {
+                               sender ! Done
+                               context stop self
+                             } else {
+                               sender ! Failed
+                               context stop self
+                             }
+    case Statement => val statement = generateStatement()
+                      sender ! StatementResult(statement)
+                      context stop self
+    case _ => sender ! Failed
+              context stop self
+  }
   
   private def deposit(amount: Double) = {
-    require(amount >= 0)
+    add(acctId, Transaction(amount))
     balance += amount
-    //TODO: add deposit transaction
+    log.info("Account: {}, Deposit amount: {}, Final balance {}.", acctId, amount, balance)
   }
   
   private def withdraw(amount: Double) = {
-    require(amount >= 0)
-    balance -= amount
-    //TODO: add withdraw transaction
+    if (amount > balance) false
+    else {
+      add(acctId, Transaction(-amount))
+      balance -= amount
+      log.info("Account: {}, Withdraw amount: {}, Final balance: {}.", acctId, amount, balance)
+      true
+    }
+  }
+  
+  private def generateStatement() = {
+    val interest = interestOf(acctType, balance)
+    val total_deposits = sumOfDeposits(acctId)
+    val total_withdrals = -sumOfWithdraws(acctId)
+    val total = balance
+    
+    "Statement"
   }
 }
