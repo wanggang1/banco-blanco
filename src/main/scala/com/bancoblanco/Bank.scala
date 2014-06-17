@@ -10,6 +10,7 @@ object Bank extends InMemoryStore[BankCustomer] {
   
   case class CustomerResult(values: List[BankCustomer])
   case object AllCustomers
+  case object Done
 }
 
 class Bank(bankId: String, name: String) extends Actor{
@@ -17,6 +18,7 @@ class Bank(bankId: String, name: String) extends Actor{
   
   def receive = {
     case cust: BankCustomer => add(bankId, cust)
+                               sender ! Done
                                context stop self
     case AllCustomers => val values = get(bankId)
                          sender ! CustomerResult(values)
