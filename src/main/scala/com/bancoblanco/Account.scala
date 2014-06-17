@@ -65,19 +65,11 @@ class Account(acctId: String, acctType: AccountType) extends Actor with ActorLog
   def receive = {
     case Deposit(amount) => deposit(amount)
                             sender ! Done
-                            context stop self
-    case Withdraw(amount) => if ( withdraw(amount) ) {
-                               sender ! Done
-                               context stop self
-                             } else {
-                               sender ! Failed
-                               context stop self
-                             }
+    case Withdraw(amount) => if ( withdraw(amount) ) sender ! Done
+                             else sender ! Failed
     case Statement => val statement = generateStatement()
                       sender ! StatementResult(statement)
-                      context stop self
     case _ => sender ! Failed
-              context stop self
   }
   
   private def deposit(amount: Double) = {

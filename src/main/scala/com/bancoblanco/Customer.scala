@@ -28,7 +28,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       log.info("Deposit request for account {}, amount {}", acctId, amount)
       
       val uid = UniqueNumber.generate
-      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor$uid")
+      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor-$acctId")
       account ! Account.Deposit(amount)
     }
     case Withdraw(acctId, amount) => {
@@ -36,7 +36,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       log.info("Withdraw request for account {}, amount {}", acctId, amount)
       
       val uid = UniqueNumber.generate
-      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor$uid")
+      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor-$acctId")
       account ! Account.Withdraw(amount)
     }
     case Transfer(fromAcctId, toAcctId, amount) => {
@@ -45,8 +45,8 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       
       val uid = UniqueNumber.generate
       val teller = context.actorOf(Props[Teller], s"TellerActor$uid")
-      val fromAcct = context.actorOf(Props(classOf[Account], fromAcctId, getAccount(fromAcctId).acctType), s"FromAccountActor$uid")
-      val toAcct = context.actorOf(Props(classOf[Account], toAcctId, getAccount(toAcctId).acctType), s"ToAccountActor$uid")
+      val fromAcct = context.actorOf(Props(classOf[Account], fromAcctId, getAccount(fromAcctId).acctType), s"AccountActor-$fromAcctId")
+      val toAcct = context.actorOf(Props(classOf[Account], toAcctId, getAccount(toAcctId).acctType), s"AccountActor-$toAcctId")
       teller ! Teller.Transfer(fromAcct, toAcct, amount)
     }
     case Statement => {
@@ -57,7 +57,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       client = sender
       for (acct <- get(customerId)) {
         val uid = UniqueNumber.generate
-        val account = context.actorOf(Props(classOf[Account], acct.id, acct.acctType), s"AccountActor$uid")
+        val account = context.actorOf(Props(classOf[Account], acct.id, acct.acctType), s"AccountActor-$acct.id")
         account ! Account.Statement
       }
     }
