@@ -1,6 +1,7 @@
 package com.bancoblanco
 
-import akka.actor.{Actor, ActorRef, Props, ActorLogging, ReceiveTimeout, OneForOneStrategy, SupervisorStrategy}
+import akka.actor.{Actor, ActorRef, Props, ActorLogging, ReceiveTimeout}
+import scala.concurrent.duration._
 
 object Customer extends InMemoryStore[BankAccount] {
   val store_type = "customer"
@@ -12,10 +13,18 @@ object Customer extends InMemoryStore[BankAccount] {
   case object Statement
   case object Done
   case object Failed
+  
+  def hasAccount(customerId: String)(acctId: String) = get(customerId).exists((x) => x.id == acctId)
+  def getAccount(customerId: String)(acctId: String) = get(customerId).filter((x) => x.id == acctId)(0)
 }
 
 class Customer(customerId: String) extends Actor with ActorLogging {
   import Customer._
+  
+  context.setReceiveTimeout(30.seconds)
+  
+  val has_account = hasAccount(customerId) _
+  val get_account = getAccount(customerId) _
   
   var numberOfAccount = 0
   var statements = List[String]()
@@ -24,29 +33,25 @@ class Customer(customerId: String) extends Actor with ActorLogging {
   def receive = {
     case acct: BankAccount => add(customerId, acct)
     case Deposit(acctId, amount) => {
-      if ( !exist(acctId) ) sender ! Failed
+      if ( !has_account(acctId) ) sender ! Failed
       log.info("Deposit request for account {}, amount {}", acctId, amount)
-      
-      val uid = UniqueNumber.generate
-      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor-$acctId")
-      account ! Account.Deposit(amount)
+
+      getChildActor(acctId) ! Account.Deposit(amount)
     }
     case Withdraw(acctId, amount) => {
-      if ( !exist(acctId) ) sender ! Failed
+      if ( !has_account(acctId) ) sender ! Failed
       log.info("Withdraw request for account {}, amount {}", acctId, amount)
-      
-      val uid = UniqueNumber.generate
-      val account = context.actorOf(Props(classOf[Account], acctId, getAccount(acctId).acctType), s"AccountActor-$acctId")
-      account ! Account.Withdraw(amount)
+
+      getChildActor(acctId) ! Account.Withdraw(amount)
     }
     case Transfer(fromAcctId, toAcctId, amount) => {
-      if ( !exist(fromAcctId) || !exist(toAcctId)) sender ! Failed
+      if ( !has_account(fromAcctId) || !has_account(toAcctId)) sender ! Failed
       log.info("Transfer request from account {} to account {}, amount {}", fromAcctId, toAcctId, amount)
       
       val uid = UniqueNumber.generate
-      val teller = context.actorOf(Props[Teller], s"TellerActor$uid")
-      val fromAcct = context.actorOf(Props(classOf[Account], fromAcctId, getAccount(fromAcctId).acctType), s"AccountActor-$fromAcctId")
-      val toAcct = context.actorOf(Props(classOf[Account], toAcctId, getAccount(toAcctId).acctType), s"AccountActor-$toAcctId")
+      val teller = context.actorOf(Props[Teller], s"TellerActor-$uid")
+      val fromAcct = getChildActor(fromAcctId)
+      val toAcct = getChildActor(toAcctId)
       teller ! Teller.Transfer(fromAcct, toAcct, amount)
     }
     case Statement => {
@@ -56,9 +61,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       statements = Nil
       client = sender
       for (acct <- get(customerId)) {
-        val uid = UniqueNumber.generate
-        val account = context.actorOf(Props(classOf[Account], acct.id, acct.acctType), s"AccountActor-$acct.id")
-        account ! Account.Statement
+        getChildActor(acct.id) ! Account.Statement
       }
     }
     case Account.StatementResult(statement) => {
@@ -68,8 +71,16 @@ class Customer(customerId: String) extends Actor with ActorLogging {
     }
     case Account.Done => sender ! Done
     case Account.Failed => sender ! Failed
+    case ReceiveTimeout => context stop self
+  }
+
+  def accountProps(acctId: String) = Props(classOf[Account], acctId, get_account(acctId).acctType)
+  
+  private def getChildActor(acctId: String): ActorRef = {
+    context.child("AccountActor-" + acctId) match {
+      case Some(actor) => actor
+      case None => context.actorOf(accountProps(acctId), s"AccountActor-$acctId")
+    }
   }
   
-  private def exist(acctId: String) = get(customerId).exists((x) => x.id == acctId)
-  private def getAccount(acctId: String) = get(customerId).filter((x) => x.id == acctId)(0)
 }
