@@ -31,35 +31,45 @@ class Customer(customerId: String) extends Actor with ActorLogging {
   var client: ActorRef = _
   
   def receive = {
-    case acct: BankAccount => add(customerId, acct)
+    case acct: BankAccount => acct match {
+      case BankAccount(acctId, _) if (has_account(acctId)) => sender ! Failed
+      case _ => add(customerId, acct); sender ! Done
+    }
     case Deposit(acctId, amount) => {
       if ( !has_account(acctId) ) sender ! Failed
       log.info("Deposit request for account {}, amount {}", acctId, amount)
 
       getChildActor(acctId) ! Account.Deposit(amount)
+      sender ! Done
     }
     case Withdraw(acctId, amount) => {
       if ( !has_account(acctId) ) sender ! Failed
       log.info("Withdraw request for account {}, amount {}", acctId, amount)
 
       getChildActor(acctId) ! Account.Withdraw(amount)
+      client = sender
     }
+    case Account.WithdrawResult(success) => if (success) client ! Done else client ! Failed
     case Transfer(fromAcctId, toAcctId, amount) => {
       if ( !has_account(fromAcctId) || !has_account(toAcctId)) sender ! Failed
       log.info("Transfer request from account {} to account {}, amount {}", fromAcctId, toAcctId, amount)
       
       val uid = UniqueNumber.generate
-      val teller = context.actorOf(Props[Teller], s"TellerActor-$uid")
+      val teller = context.actorOf(tellerProps, s"TellerActor-$uid")
       val fromAcct = getChildActor(fromAcctId)
       val toAcct = getChildActor(toAcctId)
+      
       teller ! Teller.Transfer(fromAcct, toAcct, amount)
+      client = sender
     }
+    case Teller.TransferResult(success) => if (success) client ! Done else client ! Failed
     case Statement => {
       log.info("Statement request")
       val accounts = get(customerId)
       numberOfAccount = accounts.size
       statements = Nil
       client = sender
+      
       for (acct <- get(customerId)) {
         getChildActor(acct.id) ! Account.Statement
       }
@@ -67,19 +77,24 @@ class Customer(customerId: String) extends Actor with ActorLogging {
     case Account.StatementResult(statement) => {
       log.info("Statement resunt: {}", statement)
       statements = statement :: statements
-      if (statements.size == numberOfAccount) client ! StatementResult(statements.mkString(" ,"))
+      if (statements.size == numberOfAccount) client ! StatementResult(statements.mkString(","))
     }
-    case Account.Done => sender ! Done
-    case Account.Failed => sender ! Failed
-    case ReceiveTimeout => context stop self
+    case ReceiveTimeout => {
+      log.info("ReceiveTimeout, stop self and all children")
+      context stop self
+    }
   }
 
   def accountProps(acctId: String) = Props(classOf[Account], acctId, get_account(acctId).acctType)
+  def tellerProps = Props[Teller]
   
   private def getChildActor(acctId: String): ActorRef = {
     context.child("AccountActor-" + acctId) match {
       case Some(actor) => actor
-      case None => context.actorOf(accountProps(acctId), s"AccountActor-$acctId")
+      case None => {
+        log.info("Create actor for: {}", acctId)
+        context.actorOf(accountProps(acctId), s"AccountActor-$acctId")
+      }
     }
   }
   

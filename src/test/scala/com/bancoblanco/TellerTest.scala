@@ -8,12 +8,13 @@ import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
 object TellerTestSpec {
+  import Account._
   
   class FakeAcount extends Actor {
     import context.dispatcher
     def receive = {
       case Account.Withdraw(amount) => {
-        context.system.scheduler.scheduleOnce(0.5.second, sender, Account.Done)
+        context.system.scheduler.scheduleOnce(0.5.second, sender, WithdrawResult(true))
         context stop self
       }
       case Account.Deposit(amount) => {
@@ -27,7 +28,7 @@ object TellerTestSpec {
     import context.dispatcher
     def receive = {
       case Account.Withdraw(amount) => {
-        context.system.scheduler.scheduleOnce(0.5.second, sender, Account.Failed)
+        context.system.scheduler.scheduleOnce(0.5.second, sender, WithdrawResult(false))
         context stop self
       }
     }
@@ -51,17 +52,17 @@ class TellerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordSpe
       val acctTo = system.actorOf(Props[FakeAcount])
       val teller = system.actorOf(Props[Teller])
       teller ! Transfer(acctFrom, acctTo, 123.45)
-      expectMsg(Done)
+      expectMsg(TransferResult(true))
     }
   }
-  
+
   "A Teller" should {
     "fail when failing to withdraw meney" in {
       val acctFrom = system.actorOf(Props[FakeFailedAcount])
       val acctTo = system.actorOf(Props[FakeAcount])
       val teller = system.actorOf(Props[Teller])
       teller ! Transfer(acctFrom, acctTo, 123.45)
-      expectMsg(Failed)
+      expectMsg(TransferResult(false))
     }
   }
   

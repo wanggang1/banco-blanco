@@ -50,26 +50,28 @@ object Account extends InMemoryStore[Transaction] {
   
   case class Deposit(amount: Double) {require(amount > 0)}
   case class Withdraw(amount: Double) {require(amount > 0)}
+  case class WithdrawResult(value: Boolean)
   case object Statement
   case class StatementResult(statement: String)
   case object Done
-  case object Failed
 }
 
 class Account(acctId: String, acctType: AccountType) extends Actor with ActorLogging {
   import com.bancoblanco.SimpleTimeService._
   import Account._
   
+  add(acctId, Transaction(0))
   var balance = sumOfAllTransactions(acctId)
   
   def receive = {
-    case Deposit(amount) => deposit(amount)
-                            sender ! Done
-    case Withdraw(amount) => if ( withdraw(amount) ) sender ! Done
-                             else sender ! Failed
+    case Deposit(amount) => {
+      deposit(amount)
+      sender ! Done
+    }              
+    case Withdraw(amount) => if ( withdraw(amount) ) sender ! WithdrawResult(true)
+                             else sender ! WithdrawResult(false)
     case Statement => val statement = generateStatement()
                       sender ! StatementResult(statement)
-    case _ => sender ! Failed
   }
   
   private def deposit(amount: Double) = {

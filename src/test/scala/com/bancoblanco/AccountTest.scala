@@ -10,10 +10,9 @@ import org.scalatest.junit.JUnitRunner
 @RunWith(classOf[JUnitRunner])
 class AccountTestSpec(_system: ActorSystem) extends TestKit(_system) with WordSpecLike with BeforeAndAfterAll with ImplicitSender 
 {
-  import Teller._
-  import TellerTestSpec._
+  import Account._
 
-  def this() = this(ActorSystem("TellerTestSystem"))
+  def this() = this(ActorSystem("AccountTestSystem"))
 
   override def afterAll: Unit = system.shutdown()
   
