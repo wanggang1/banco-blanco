@@ -47,13 +47,12 @@ class TransactionSpec(_system: ActorSystem) extends TestKit(_system) with WordSp
       expectMsg(Done)
     }
     
-    "withdraw from an accout" in {
+    "withdraw from an accout1" in {
       customer ! Withdraw(acctId1, 100.0)
       expectMsg(Done)
     }
     
-    "not overdrawn" in {
-      val account = BankAccount(acctId3, SuperSavingsAccount())
+    "not overdrawn when account2 only has $2000" in {
       customer ! Withdraw(acctId2, 3000.0)
       expectMsg(Failed)
     }
@@ -63,7 +62,7 @@ class TransactionSpec(_system: ActorSystem) extends TestKit(_system) with WordSp
       expectMsg(Done)
     }
     
-    "not transfer $1001" in {
+    "not transfer $1001 from account1" in {
       customer ! Transfer(acctId1, acctId2, 1001)
       expectMsg(Failed)
     }
