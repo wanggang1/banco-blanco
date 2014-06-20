@@ -13,9 +13,6 @@ object Customer extends InMemoryStore[BankAccount] {
   case object Statement
   case object Done
   case object Failed
-  
-  def hasAccount(customerId: String)(acctId: String) = get(customerId).exists((x) => x.id == acctId)
-  def getAccount(customerId: String)(acctId: String) = get(customerId).filter((x) => x.id == acctId)(0)
 }
 
 class Customer(customerId: String) extends Actor with ActorLogging {
@@ -23,8 +20,8 @@ class Customer(customerId: String) extends Actor with ActorLogging {
   
   context.setReceiveTimeout(30.seconds)
   
-  val has_account = hasAccount(customerId) _
-  val get_account = getAccount(customerId) _
+  val has_account = hasValue(customerId) _
+  val get_account = getValue(customerId) _
   
   var numberOfAccount = 0
   var statements = List[String]()
@@ -32,18 +29,18 @@ class Customer(customerId: String) extends Actor with ActorLogging {
   
   def receive = {
     case acct: BankAccount => acct match {
-      case BankAccount(acctId, _) if (has_account(acctId)) => sender ! Failed
+      case BankAccount(acctId, _) if (has_account( (acct: BankAccount) => acct.id == acctId ) ) => sender ! Failed
       case _ => add(customerId, acct); sender ! Done
     }
     case Deposit(acctId, amount) => {
-      if ( !has_account(acctId) ) sender ! Failed
+      if ( !has_account( (acct: BankAccount) => acct.id == acctId) ) sender ! Failed
       log.info("Deposit request for account {}, amount {}", acctId, amount)
 
       getChildActor(acctId) ! Account.Deposit(amount)
       sender ! Done
     }
     case Withdraw(acctId, amount) => {
-      if ( !has_account(acctId) ) sender ! Failed
+      if ( !has_account( (acct: BankAccount) => acct.id == acctId ) ) sender ! Failed
       log.info("Withdraw request for account {}, amount {}", acctId, amount)
 
       getChildActor(acctId) ! Account.Withdraw(amount)
@@ -51,7 +48,8 @@ class Customer(customerId: String) extends Actor with ActorLogging {
     }
     case Account.WithdrawResult(success) => if (success) client ! Done else client ! Failed
     case Transfer(fromAcctId, toAcctId, amount) => {
-      if ( !has_account(fromAcctId) || !has_account(toAcctId)) sender ! Failed
+      if ( !has_account( (acct: BankAccount) => acct.id == fromAcctId) || 
+          !has_account( (acct: BankAccount) => acct.id == toAcctId)) sender ! Failed
       log.info("Transfer request from account {} to account {}, amount {}", fromAcctId, toAcctId, amount)
       
       val uid = UniqueNumber.generate
@@ -74,9 +72,9 @@ class Customer(customerId: String) extends Actor with ActorLogging {
         getChildActor(acct.id) ! Account.Statement
       }
     }
-    case Account.StatementResult(statement) => {
-      log.info("Statement resunt: {}", statement)
-      statements = statement :: statements
+    case Account.StatementResult(acctType, total, deposit, withdraw, interest) => {
+      log.info("Statement resunt: {}", acctType.typeName)
+      statements = acctType.typeName :: statements
       if (statements.size == numberOfAccount) client ! StatementResult(statements.mkString(","))
     }
     case ReceiveTimeout => {
@@ -85,7 +83,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
     }
   }
 
-  def accountProps(acctId: String) = Props(classOf[Account], acctId, get_account(acctId).acctType)
+  def accountProps(acctId: String) = Props(classOf[Account], acctId, get_account( (acct: BankAccount) => acct.id == acctId ).acctType)
   def tellerProps = Props[Teller]
   
   private def getChildActor(acctId: String): ActorRef = {

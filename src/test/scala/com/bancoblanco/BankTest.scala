@@ -49,5 +49,14 @@ class BankTestSpec(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       expectMsg(CustomerResult(customers))
     }
   }
+
+  "A Bank" can {
+    "not add customer with a duplicate id" in {
+      val bank = system.actorOf(Props(classOf[Bank], bankId, "Banco Blanco"))
+      val customer = BankCustomer(customerId1, "John Doe 2")
+      bank ! customer
+      expectMsg(Failed)
+    }
+  }
   
 }

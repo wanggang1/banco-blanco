@@ -57,7 +57,7 @@ class TellerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordSpe
   }
 
   "A Teller" should {
-    "fail when failing to withdraw meney" in {
+    "fail when failing to withdraw money" in {
       val acctFrom = system.actorOf(Props[FakeFailedAcount])
       val acctTo = system.actorOf(Props[FakeAcount])
       val teller = system.actorOf(Props[Teller])

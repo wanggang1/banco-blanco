@@ -17,11 +17,13 @@ object CustomerTestSpec {
     import context.dispatcher
     import Account._
     
+    val statementResult = StatementResult(CheckingAccount(), 0.0, 0.0, 0.0, 0.0)
+    
     def receive = {
       case Deposit(amount) => context.system.scheduler.scheduleOnce(1.second, sender, Done)
       case Withdraw(10000.0) => context.system.scheduler.scheduleOnce(1.second, sender, WithdrawResult(false))
       case Withdraw(amount) => context.system.scheduler.scheduleOnce(1.second, sender, WithdrawResult(true))
-      case Statement => context.system.scheduler.scheduleOnce(1.second, sender, StatementResult("Statement"))
+      case Statement => context.system.scheduler.scheduleOnce(1.second, sender, statementResult)
     }
   }
   
@@ -65,6 +67,9 @@ class CustomerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordS
       customer ! account
       expectMsg(Done)
       
+      val accounts = Customer.get(customerId)
+      for (acct <- accounts) println("BankAccount.id=" + acct.id + ", " + "BankAccount.acctType=" + acct.acctType.typeName)
+        
       val account1 = BankAccount(acctId2, SuperSavingsAccount())
       customer ! account1
       expectMsg(Failed)
@@ -73,7 +78,7 @@ class CustomerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordS
       assert(3 == Customer.get(customerId).size)
     }
   }
-  
+
   "A customer" can {
     "do deposit" in {
       val customer = system.actorOf(fakeCustomerProps)
@@ -108,7 +113,7 @@ class CustomerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordS
     "request statement" in {
       val customer = system.actorOf(fakeCustomerProps)
       customer ! Statement
-      expectMsg(StatementResult("Statement,Statement,Statement"))
+      expectMsg(StatementResult("Checking,Checking,Checking"))
     }
   }
 

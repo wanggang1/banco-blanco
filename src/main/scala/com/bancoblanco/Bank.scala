@@ -11,15 +11,21 @@ object Bank extends InMemoryStore[BankCustomer] {
   case class CustomerResult(values: List[BankCustomer])
   case object AllCustomers
   case object Done
+  case object Failed
 }
 
 class Bank(bankId: String, name: String) extends Actor with ActorLogging{
   import Bank._
   
+  val has_customer = hasValue(bankId) _
+  
   def receive = {
-    case cust: BankCustomer => add(bankId, cust)
-                               sender ! Done
-                               log.info("Customer added for: {}, Customer Id: {}, Customer name {}.", bankId, cust.id, cust.name)
+    case cust: BankCustomer => if ( has_customer( (customer: BankCustomer) => customer.id == cust.id) ) sender ! Failed
+                               else {
+                                 add(bankId, cust)
+                                 sender ! Done
+                                 log.info("Customer added for: {}, Customer Id: {}, Customer name {}.", bankId, cust.id, cust.name)
+                               }
                                context stop self
     case AllCustomers => val values = get(bankId)
                          sender ! CustomerResult(values)

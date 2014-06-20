@@ -58,9 +58,13 @@ class AccountTestSpec(_system: ActorSystem) extends TestKit(_system) with WordSp
     }
     
     "provide statement" in {
+      val balance = 250.0
+      val deposit = 650.0
+      val withdraw = 400.0
+      val interest = interestOf(CheckingAccount(), balance)
       val account = system.actorOf(Props(classOf[Account], acctId, CheckingAccount()))
       account ! Statement
-      expectMsg(StatementResult("Statement"))
+      expectMsg(StatementResult(CheckingAccount(), balance, deposit, withdraw, interest))
     }
   }
 }

@@ -9,9 +9,14 @@ trait InMemoryStore[T] {
     val values = value :: map.getOrElse(key, List[T]())
     map + (key -> values)
   })
-  
-  def get(key: String): List[T] = atominList.single.get(key)
-    
+      
   def getAll(): Map[String, List[T]] = atominList.single.get
- 
+  
+  def get(key: String): List[T] = {
+    val map = getAll()
+    map.getOrElse(key, List[T]())
+  }
+  
+  def hasValue(key: String)(predicate: (T) => Boolean) = get(key).exists(predicate)
+  def getValue(key: String)(predicate: (T) => Boolean) = get(key).filter(predicate)(0)
 }

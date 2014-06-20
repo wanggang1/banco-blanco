@@ -38,7 +38,7 @@ class TransactionSpec(_system: ActorSystem) extends TestKit(_system) with WordSp
   }
   
   "A customer" can {
-    "deposit to different account" in {
+    "deposit to different accounts this customer owns" in {
       customer ! Deposit(acctId1, 1000.0)
       expectMsg(Done)
       customer ! Deposit(acctId2, 2000.0)
@@ -47,12 +47,12 @@ class TransactionSpec(_system: ActorSystem) extends TestKit(_system) with WordSp
       expectMsg(Done)
     }
     
-    "withdraw from an accout1" in {
+    "withdraw from accout1" in {
       customer ! Withdraw(acctId1, 100.0)
       expectMsg(Done)
     }
     
-    "not overdrawn when account2 only has $2000" in {
+    "not overdraw when account2 only has $2000" in {
       customer ! Withdraw(acctId2, 3000.0)
       expectMsg(Failed)
     }
