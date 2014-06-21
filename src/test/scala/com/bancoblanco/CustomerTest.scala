@@ -17,7 +17,7 @@ object CustomerTestSpec {
     import context.dispatcher
     import Account._
     
-    val statementResult = StatementResult(CheckingAccount(), 0.0, 0.0, 0.0, 0.0)
+    val statementResult = StatementResult(CheckingAccount(), 500.0, 1000.0, 500.0, 0.5)
     
     def receive = {
       case Deposit(amount) => context.system.scheduler.scheduleOnce(1.second, sender, Done)
@@ -113,7 +113,27 @@ class CustomerTestSpec(_system: ActorSystem) extends TestKit(_system) with WordS
     "request statement" in {
       val customer = system.actorOf(fakeCustomerProps)
       customer ! Statement
-      expectMsg(StatementResult("Checking,Checking,Checking"))
+      expectMsg(StatementResult(s"""Statement for $customerId
+
+Checking account
+  deposit USD1000.0
+  withdraw USD500.0
+total USD500.0
+Interest Owed USD0.5
+
+Checking account
+  deposit USD1000.0
+  withdraw USD500.0
+total USD500.0
+Interest Owed USD0.5
+
+Checking account
+  deposit USD1000.0
+  withdraw USD500.0
+total USD500.0
+Interest Owed USD0.5
+
+Total In All Accounts USD1500.0""".replace("USD", "$")))
     }
   }
 

@@ -4,15 +4,10 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
 
-object AccountInterestTestSpec {
-  
-}
-
 @RunWith(classOf[JUnitRunner])
 class AccountInterestTestSpec extends FlatSpec with Matchers with BeforeAndAfterAll
 {
   import Account._
-  import AccountInterestTestSpec._
   import com.bancoblanco.SimpleTimeService._
 
   override def beforeAll: Unit = {}

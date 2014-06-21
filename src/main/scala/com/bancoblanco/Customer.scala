@@ -5,6 +5,21 @@ import scala.concurrent.duration._
 
 object Customer extends InMemoryStore[BankAccount] {
   val store_type = "customer"
+
+  def singleStatement(acctTypeName: String, total: Double, deposit: Double, withdraw: Double, interest: Double) = {
+    val formatted = s"""$acctTypeName account
+  deposit USD$deposit
+  withdraw USD$withdraw
+total USD$total
+Interest Owed USD$interest"""
+    formatted.replace("USD", "$")
+  }
+  
+  def format(statements: List[String], customerId: String, total: Double) = {
+    val withHeader = s"Statement for $customerId" :: statements
+    val lineTotal = s"Total In All Accounts USD$total".replace("USD", "$")
+    (withHeader ::: List(lineTotal)).mkString("\n\n")
+  }
   
   case class Deposit(acctId: String, amount: Double)
   case class Withdraw(acctId: String, amount: Double)
@@ -25,6 +40,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
   
   var numberOfAccount = 0
   var statements = List[String]()
+  var totalInStatements = 0.0
   var client: ActorRef = _
   
   def receive = {
@@ -65,6 +81,7 @@ class Customer(customerId: String) extends Actor with ActorLogging {
       log.info("Statement request")
       val accounts = get(customerId)
       numberOfAccount = accounts.size
+      totalInStatements = 0
       statements = Nil
       client = sender
       
@@ -74,8 +91,9 @@ class Customer(customerId: String) extends Actor with ActorLogging {
     }
     case Account.StatementResult(acctType, total, deposit, withdraw, interest) => {
       log.info("Statement resunt: {}", acctType.typeName)
-      statements = acctType.typeName :: statements
-      if (statements.size == numberOfAccount) client ! StatementResult(statements.mkString(","))
+      statements = singleStatement(acctType.typeName, total, deposit, withdraw, interest) :: statements
+      totalInStatements += total
+      if (statements.size == numberOfAccount) client ! StatementResult( format(statements, customerId, totalInStatements) )
     }
     case ReceiveTimeout => {
       log.info("ReceiveTimeout, stop self and all children")
